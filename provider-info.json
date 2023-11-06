@@ -18,5 +18,9 @@
         "name": "Google",
         "url": "https://www.gstatic.com/ipranges/cloud.json",
         "refreshToken": ""
+    },
+    {
+        "name": "CloudFlare",
+        "url": "https://www.cloudflare.com/ips-v4"
     }
 ]
