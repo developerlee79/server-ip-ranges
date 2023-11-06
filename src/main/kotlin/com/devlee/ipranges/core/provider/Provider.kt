@@ -4,6 +4,7 @@ enum class Provider {
 
     Amazon,
     Oracle,
-    Microsoft
+    Microsoft,
+    Google
 
 }
