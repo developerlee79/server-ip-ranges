@@ -6,6 +6,7 @@ enum class Provider {
     Oracle,
     Microsoft,
     Google,
-    CloudFlare
+    CloudFlare,
+    DigitalOcean
 
 }

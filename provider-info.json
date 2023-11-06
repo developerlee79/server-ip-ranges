@@ -22,5 +22,9 @@
     {
         "name": "CloudFlare",
         "url": "https://www.cloudflare.com/ips-v4"
+    },
+    {
+        "name": "DigitalOcean",
+        "url": "https://www.digitalocean.com/geo/google.csv"
     }
 ]
