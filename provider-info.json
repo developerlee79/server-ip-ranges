@@ -26,5 +26,9 @@
     {
         "name": "DigitalOcean",
         "url": "https://www.digitalocean.com/geo/google.csv"
+    },
+    {
+        "name": "Tencent",
+        "url": "https://%s/v4/ConfigSvc/GetIPList?sdkappid=88888888&identifier=admin&usersig=xxx&random=99999999&contenttype=json&nettype=0"
     }
 ]
