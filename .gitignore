@@ -1,0 +1,21 @@
+# Gradle
+gradle
+.gradle
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# IDEA
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+gradlew
+gradlew.bat
+.vscode
+
+# Mac OS
+.DS_Store
