@@ -8,5 +8,10 @@
         "name": "Oracle",
         "url": "https://docs.oracle.com/iaas/tools/public_ip_ranges.json",
         "refreshToken": ""
+    },
+    {
+        "name": "Microsoft",
+        "url": "https://www.microsoft.com/en-us/download/confirmation.aspx?id=56519",
+        "refreshToken": ""
     }
 ]
