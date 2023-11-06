@@ -1,3 +1,7 @@
 [
-
+    {
+        "name": "Amazon",
+        "url": "https://ip-ranges.amazonaws.com/ip-ranges.json",
+        "refreshToken": ""
+    }
 ]
