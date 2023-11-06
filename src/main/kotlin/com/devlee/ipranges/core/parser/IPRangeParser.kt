@@ -9,4 +9,20 @@ sealed interface IPRangeParser {
 
     fun parse(): List<IPRanges>
 
+    companion object {
+
+        fun getProvider(provider: Provider): IPRangeParser {
+            return when (provider) {
+                Provider.Tencent -> TencentIPRangeParser
+                Provider.Amazon -> AmazonIPRangeParser
+                Provider.Oracle -> OracleIPRangeParser
+                Provider.Microsoft -> MicrosoftIPRangeParser
+                Provider.Google -> GoogleIPRangeParser
+                Provider.CloudFlare -> CloudFlareIPRangeParser
+                Provider.DigitalOcean -> DigitalOceanIPRangeParser
+            }
+        }
+
+    }
+
 }
