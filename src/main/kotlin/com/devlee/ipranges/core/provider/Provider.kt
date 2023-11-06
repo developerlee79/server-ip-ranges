@@ -7,6 +7,7 @@ enum class Provider {
     Microsoft,
     Google,
     CloudFlare,
-    DigitalOcean
+    DigitalOcean,
+    Tencent
 
 }
