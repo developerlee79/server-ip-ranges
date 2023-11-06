@@ -3,5 +3,10 @@
         "name": "Amazon",
         "url": "https://ip-ranges.amazonaws.com/ip-ranges.json",
         "refreshToken": ""
+    },
+    {
+        "name": "Oracle",
+        "url": "https://docs.oracle.com/iaas/tools/public_ip_ranges.json",
+        "refreshToken": ""
     }
 ]
