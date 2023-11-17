@@ -11,7 +11,7 @@ sealed interface IPRangeParser {
 
     companion object {
 
-        fun getProvider(provider: Provider): IPRangeParser {
+        fun getParser(provider: Provider): IPRangeParser {
             return when (provider) {
                 Provider.Tencent -> TencentIPRangeParser
                 Provider.Amazon -> AmazonIPRangeParser
