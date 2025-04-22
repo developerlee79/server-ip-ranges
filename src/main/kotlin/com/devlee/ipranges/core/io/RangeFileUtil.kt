@@ -22,6 +22,10 @@ class RangeFileUtil {
             return regexCache.getOrPut(provider) { findRegex(provider) }
         }
 
+        fun getAllRegex(): List<IPRegex> {
+            return Provider.entries.flatMap { getRegex(it) }
+        }
+
         fun findAllRegex(): List<IPRegex> {
             val regexFiles = File(RANGE_FILE_PATH)
 
