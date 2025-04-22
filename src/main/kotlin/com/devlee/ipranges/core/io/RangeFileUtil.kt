@@ -16,7 +16,11 @@ class RangeFileUtil {
 
         private const val RANGE_FILE_PATH = "./range/"
 
-        private val regexCache: MutableMap<Provider, List<Regex>> = mutableMapOf()
+        private val regexCache: MutableMap<Provider, List<IPRegex>> = mutableMapOf()
+
+        fun getRegex(provider: Provider): List<IPRegex> {
+            return regexCache.getOrPut(provider) { findRegex(provider) }
+        }
 
         fun findAllRegex(): List<IPRegex> {
             val regexFiles = File(RANGE_FILE_PATH)
