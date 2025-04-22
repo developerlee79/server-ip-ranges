@@ -26,30 +26,6 @@ class RangeFileUtil {
             return Provider.entries.flatMap { getRegex(it) }
         }
 
-        fun findAllRegex(): List<IPRegex> {
-            val regexFiles = File(RANGE_FILE_PATH)
-
-            if (!regexFiles.exists() || regexFiles.listFiles().isNullOrEmpty()) {
-                throw NoSuchFileException(regexFiles)
-            }
-
-            val ipRegexList = mutableListOf<IPRegex>()
-
-            regexFiles.listFiles()?.forEach { regexFile ->
-                val regexFileList = regexFile.listFiles()
-
-                val regexDocument = regexFileList?.getOrNull(0)
-
-                regexDocument?.run {
-                    ipRegexList.addAll(
-                        jsonFormat.decodeFromString(this.readText())
-                    )
-                }
-            }
-
-            return ipRegexList
-        }
-
         fun findRegex(provider: Provider): List<IPRegex> {
             val regexFile = File(RANGE_FILE_PATH + createRegexFileName(provider))
 
