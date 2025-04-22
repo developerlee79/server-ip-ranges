@@ -13,7 +13,7 @@ class IPRangeUtil {
                 throw UnknownHostException("Invalid IP Address")
             }
 
-            val regexes = RangeFileUtil.findAllRegex()
+            val regexes = RangeFileUtil.getAllRegex()
 
             return regexes.any { regexList ->
                 run {
@@ -27,7 +27,7 @@ class IPRangeUtil {
                 throw UnknownHostException("Invalid IP Address")
             }
 
-            val regexes = RangeFileUtil.findRegex(provider)
+            val regexes = RangeFileUtil.getRegex(provider)
 
             return regexes.any { regexList ->
                 run {
@@ -41,7 +41,7 @@ class IPRangeUtil {
                 throw UnknownHostException("Invalid IP Address")
             }
 
-            val regexes = RangeFileUtil.findRegex(provider)
+            val regexes = RangeFileUtil.getRegex(provider)
 
             return regexes.any { regexList ->
                 run {
