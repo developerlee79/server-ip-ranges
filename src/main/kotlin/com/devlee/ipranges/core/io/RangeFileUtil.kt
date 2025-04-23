@@ -45,7 +45,7 @@ class RangeFileUtil {
                     name = it.name,
                     regex = it.ranges
                         .filter { ip -> ip.split('.').size == 4 }
-                        .map { ip -> RegexConverter.extract(ip) }
+                        .map { ip -> Regex(RegexConverter.extract(ip)) }
                 )
             }
 

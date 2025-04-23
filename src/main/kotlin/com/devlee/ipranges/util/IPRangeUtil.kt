@@ -17,7 +17,7 @@ class IPRangeUtil {
 
             return regexes.any { regexList ->
                 run {
-                    regexList.regex.any { Regex(it).matches(ip) }
+                    regexList.regex.any { it.matches(ip) }
                 }
             }
         }
@@ -31,7 +31,7 @@ class IPRangeUtil {
 
             return regexes.any { regexList ->
                 run {
-                    regexList.regex.any { Regex(it).matches(ip) }
+                    regexList.regex.any { it.matches(ip) }
                 }
             }
         }
@@ -45,7 +45,7 @@ class IPRangeUtil {
 
             return regexes.any { regexList ->
                 run {
-                    (regexList.name == region) and regexList.regex.any { Regex(it).matches(ip) }
+                    (regexList.name == region) and regexList.regex.any { it.matches(ip) }
                 }
             }
         }
