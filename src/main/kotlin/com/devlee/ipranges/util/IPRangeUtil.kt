@@ -1,7 +1,9 @@
 package com.devlee.ipranges.util
 
 import com.devlee.ipranges.core.io.RangeFileUtil
+import com.devlee.ipranges.core.io.model.MatchResult
 import com.devlee.ipranges.core.provider.Provider
+import java.net.InetAddress
 import java.net.UnknownHostException
 
 class IPRangeUtil {
@@ -22,32 +24,29 @@ class IPRangeUtil {
             }
         }
 
-        fun isServerIP(ip: String?, provider: Provider): Boolean {
+        fun isServerIP(ip: String?, provider: Provider): Boolean =
+            findMatch(ip, provider) != null
+
+        fun isServerIP(ip: String?, provider: Provider, region: String): Boolean =
+            findMatch(ip, provider) { it == region } != null
+
+        private fun findMatch(
+            ip: String?,
+            provider: Provider,
+            regionFilter: (String) -> Boolean = { true }
+        ): MatchResult? {
             if (ip.isNullOrBlank()) {
-                throw UnknownHostException("Invalid IP Address")
+                return null
             }
 
-            val regexes = RangeFileUtil.getRegex(provider)
+            val target = InetAddress.getByName(ip).hostAddress
 
-            return regexes.any { regexList ->
-                run {
-                    regexList.regex.any { it.matches(ip) }
+            return RangeFileUtil.getRegex(provider) { regionFilter(it.name) }
+                .firstNotNullOfOrNull { regexGroup ->
+                    regexGroup.regex.firstOrNull { it.matches(target) }?.let {
+                        MatchResult(provider, regexGroup.name, it.pattern)
+                    }
                 }
-            }
-        }
-
-        fun isServerIP(ip: String?, provider: Provider, region: String): Boolean {
-            if (ip.isNullOrBlank()) {
-                throw UnknownHostException("Invalid IP Address")
-            }
-
-            val regexes = RangeFileUtil.getRegex(provider)
-
-            return regexes.any { regexList ->
-                run {
-                    (regexList.name == region) and regexList.regex.any { it.matches(ip) }
-                }
-            }
         }
 
     }
