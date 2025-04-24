@@ -22,6 +22,20 @@ class RangeFileUtil {
             return regexCache.getOrPut(provider) { findRegex(provider) }
         }
 
+        fun getRegex(
+            provider: Provider,
+            filter: (IPRegex) -> Boolean = { true }
+        ): List<IPRegex> {
+            return regexCache.getOrPut(provider) {
+                findRegex(provider).map {
+                    IPRegex(
+                        name = it.name,
+                        regex = it.regex
+                    )
+                }
+            }.filter(filter)
+        }
+
         fun getAllRegex(): List<IPRegex> {
             return Provider.entries.flatMap { getRegex(it) }
         }
