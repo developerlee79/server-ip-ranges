@@ -6,24 +6,29 @@ class IPv4RegexExtractor {
 
     companion object {
 
-        private val IPv4_REGEX = Regex("(\\d{1,2}|1\\d{2}|2[0-4]\\d|25[0-5]).".repeat(4).dropLast(1))
+        private const val OCTET_PATTERN = "(\\d{1,2}|1\\d{2}|2[0-4]\\d|25[0-5])"
+        private const val OCTET_BITS = 8
+        private const val OCTET_COUNT = 4
+        private const val ADDRESS_BITS = OCTET_BITS * OCTET_COUNT
+
+        internal val IPv4_LITERAL_REGEX = Regex("$OCTET_PATTERN(\\.$OCTET_PATTERN){3}")
 
         fun extract(ip: String, cidr: Int?): String {
             if (ip.isBlank()) {
                 throw IllegalArgumentException("Empty IP Address")
             }
 
-            if (!ip.matches(IPv4_REGEX)) {
+            if (!ip.matches(IPv4_LITERAL_REGEX)) {
                 throw UnknownHostException("Invalid IP Address")
             }
 
-            if (cidr == null || cidr >= 32) {
-                return ip
+            if (cidr == null || cidr >= ADDRESS_BITS) {
+                return ip.replace(".", "\\.")
             }
 
             val addressArray = ip.split('.')
 
-            val quartet = addressArray[cidr / 8].toInt()
+            val quartet = addressArray[cidr / OCTET_BITS].toInt()
             val quartetRange = findIPRange(quartet, cidr)
 
             val regexBuilder = StringBuilder()
@@ -35,22 +40,22 @@ class IPv4RegexExtractor {
         }
 
         private fun findIPRange(quartet: Int, cidr: Int): IntRange {
-            val quartetValue = 1.shl(8 - (cidr % 8))
+            val blockSize = 1.shl(OCTET_BITS - (cidr % OCTET_BITS))
 
-            val low = quartet and quartetValue or quartet
-            val high = quartetValue - 1 + low
+            val low = quartet and (blockSize - 1).inv()
+            val high = low + blockSize - 1
 
             return low .. high
         }
 
         private fun extractFixedQuartet(addressArray: List<String>, cidr: Int): String {
             val quartetStringBuilder = StringBuilder()
-            val indexOfUnfixedQuartet = cidr / 8
+            val indexOfUnfixedQuartet = cidr / OCTET_BITS
 
             for (i in 0 until indexOfUnfixedQuartet) {
                 quartetStringBuilder
                     .append(addressArray[i])
-                    .append('.')
+                    .append("\\.")
             }
 
             return quartetStringBuilder.toString()
@@ -58,12 +63,12 @@ class IPv4RegexExtractor {
 
         private fun extractLeftQuartet(cidr: Int): String {
             val quartetStringBuilder = StringBuilder()
-            val indexOfUnfixedQuartet = cidr / 8
+            val indexOfUnfixedQuartet = cidr / OCTET_BITS
 
-            for (i in indexOfUnfixedQuartet + 1 until 4) {
+            for (i in indexOfUnfixedQuartet + 1 until OCTET_COUNT) {
                 quartetStringBuilder
-                    .append(".")
-                    .append(convertRangeToRegexString(0 .. 255))
+                    .append("\\.")
+                    .append(OCTET_PATTERN)
             }
 
             return quartetStringBuilder.toString()
@@ -71,87 +76,75 @@ class IPv4RegexExtractor {
 
         private fun convertRangeToRegexString(range: IntRange): String {
             if (range == 0 .. 255) {
-                return "(\\d{1,2}|1\\d{2}|2[0-4]\\d|25[0-5])"
+                return OCTET_PATTERN
             }
 
-            val first = range.first
-            val last = range.last
-
-            val regexBuilder = StringBuilder("(")
-
-            val diff = last - first
-
-            val firstString = first.toString()
-            val lastString = last.toString()
-
-            var minusIndex = 0
-            var multiply = 1
-
-            var low = first
-            var high = last
-
-            while (diff >= multiply * 10 && minusIndex < firstString.length) {
-                low -= appendRegexString(regexBuilder, first, firstString, minusIndex, multiply, true)
-                low += multiply * 10
-                high -= appendRegexString(regexBuilder, last, lastString, minusIndex, multiply, false)
-                high--
-
-                minusIndex++
-                multiply *= 10
-            }
-
-            if (low < high) {
-                val lowString = low.toString()
-                val highString = high.toString()
-
-                val currentIndex = lowString.lastIndex - minusIndex
-
-                regexBuilder.append(lowString.substring(0 until currentIndex))
-
-                for (i in currentIndex until lowString.length) {
-                    if (lowString[i].digitToInt() > highString[i].digitToInt()) {
-                        regexBuilder.append("[${highString[i]}-${lowString[i]}]")
-                    } else {
-                        regexBuilder.append("[${lowString[i]}-${highString[i]}]")
-                    }
-                }
-            } else {
-                regexBuilder.deleteAt(regexBuilder.lastIndex)
-            }
-
-            return regexBuilder.append(")").toString()
+            return "(" + buildRangeBranches(range.first, range.last).joinToString("|") + ")"
         }
 
-        private fun appendRegexString(
-            regexBuilder: StringBuilder,
-            target: Int,
-            targetString: String,
-            minusIndex: Int,
-            multiply: Int,
-            isFirst: Boolean
-        ): Int {
-            val currentIndex = targetString.lastIndex - minusIndex
-            val currentChar = targetString[currentIndex]
+        /*
+        * Decimal values match unpadded, so [low, high] is split into same-digit-length
+        * subranges ([0,9], [10,99], [100,255]) before digit-wise regex generation.
+        */
+        private fun buildRangeBranches(low: Int, high: Int): List<String> {
+            val digitLengthBands = listOf(0..9, 10..99, 100..255)
 
-            regexBuilder.append(targetString.substring(0 until currentIndex))
+            return digitLengthBands.flatMap { band ->
+                val bandLow = maxOf(low, band.first)
+                val bandHigh = minOf(high, band.last)
 
-            if (target < multiply) {
-                regexBuilder.append("[0-9]")
-            } else {
-                if (isFirst && currentChar != '9') {
-                    regexBuilder.append("[${currentChar + (if (minusIndex > 0) 1 else 0)}-9]")
-                } else if (!isFirst && currentChar != '0') {
-                    regexBuilder.append("[0-${currentChar - (if (minusIndex > 0) 1 else 0)}]")
+                if (bandLow > bandHigh) {
+                    emptyList()
                 } else {
-                    regexBuilder.append(currentChar)
+                    sameLengthRangeBranches(bandLow.toString(), bandHigh.toString())
                 }
             }
+        }
 
-            regexBuilder
-                .append("[0-9]".repeat(minusIndex))
-                .append("|")
+        private fun sameLengthRangeBranches(low: String, high: String): List<String> {
+            if (low == high) {
+                return listOf(low)
+            }
 
-            return currentChar.digitToInt() * multiply
+            if (low.length == 1) {
+                return listOf(digitClass(low[0], high[0]))
+            }
+
+            if (low[0] == high[0]) {
+                return sameLengthRangeBranches(low.drop(1), high.drop(1)).map { "${low[0]}$it" }
+            }
+
+            val restLength = low.length - 1
+            val zeros = "0".repeat(restLength)
+            val nines = "9".repeat(restLength)
+
+            val branches = mutableListOf<String>()
+
+            var middleLowDigit = low[0]
+            var middleHighDigit = high[0]
+
+            if (low.drop(1) != zeros) {
+                middleLowDigit++
+                branches += sameLengthRangeBranches(low.drop(1), nines).map { "${low[0]}$it" }
+            }
+
+            val highBranches = if (high.drop(1) != nines) {
+                middleHighDigit--
+                sameLengthRangeBranches(zeros, high.drop(1)).map { "${high[0]}$it" }
+            } else {
+                emptyList()
+            }
+
+            if (middleLowDigit <= middleHighDigit) {
+                branches += digitClass(middleLowDigit, middleHighDigit) + "[0-9]".repeat(restLength)
+            }
+
+            return branches + highBranches
+        }
+
+        private fun digitClass(low: Char, high: Char): String {
+            if (low == high) return low.toString()
+            return "[$low-$high]"
         }
 
     }
