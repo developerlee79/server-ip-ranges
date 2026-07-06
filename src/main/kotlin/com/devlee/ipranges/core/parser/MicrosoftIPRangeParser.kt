@@ -30,7 +30,18 @@ data object MicrosoftIPRangeParser: IPRangeParser {
 
             val rangeFileURL = findRangeFileURL(providerInfo)
 
-            val rangeFile = File("./range/microsoft/" + rangeFileURL.split("/").last())
+            val rangeFileName = rangeFileURL.split("/").last()
+
+            /*
+            * The file name is derived from remote content; restrict it to the expected
+            * pattern so path separators or dot-dot sequences can never reach File().
+            */
+            if (!rangeFileName.matches(Regex("ServiceTags_[A-Za-z0-9_.-]+\\.json")) || ".." in rangeFileName) {
+                throw IllegalStateException("Unexpected Microsoft range file name: $rangeFileName")
+            }
+
+            val rangeFile = File("./range/microsoft/$rangeFileName")
+            rangeFile.parentFile.mkdirs()
             rangeFile.deleteOnExit()
 
             val rangeFileChannel = RequestClient.getResponse<ByteReadChannel>(rangeFileURL)
@@ -47,7 +58,7 @@ data object MicrosoftIPRangeParser: IPRangeParser {
             val platformArray = rangeJson["values"]?.jsonArray
 
             if (platformArray.isNullOrEmpty()) {
-                throw RuntimeException("Test")
+                throw IllegalStateException("Microsoft range document contains no 'values' entries")
             }
 
             for (platform in platformArray) {
