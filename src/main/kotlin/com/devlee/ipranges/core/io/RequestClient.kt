@@ -11,19 +11,15 @@ class RequestClient private constructor() {
 
     companion object {
 
-        private var client: HttpClient? = null
-
-        fun getClient(): HttpClient {
-            if (client == null) {
-                client = HttpClient(Java) {
-                    install(ContentNegotiation) {
-                        json()
-                    }
+        private val lazyClient: HttpClient by lazy {
+            HttpClient(Java) {
+                install(ContentNegotiation) {
+                    json()
                 }
             }
-
-            return client as HttpClient
         }
+
+        fun getClient(): HttpClient = lazyClient
 
         suspend inline fun <reified T>getResponse(url: String): T
             = getClient().get(url).body<T>()
