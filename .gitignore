@@ -1,5 +1,4 @@
 # Gradle
-gradle
 .gradle
 build/
 !**/src/main/**/build/
@@ -19,8 +18,6 @@ bin/
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
-gradlew
-gradlew.bat
 .vscode
 
 # Logs
