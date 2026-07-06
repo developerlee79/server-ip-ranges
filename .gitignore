@@ -5,6 +5,12 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+# Build output
+bin/
+
+# Cursor
+.cursor/
+
 # IDEA
 .idea
 *.iws
@@ -16,6 +22,14 @@ out/
 gradlew
 gradlew.bat
 .vscode
+
+# Logs
+*.log
+
+# Local / Environment
+.env
+.env.local
+.env.*.local
 
 # Mac OS
 .DS_Store

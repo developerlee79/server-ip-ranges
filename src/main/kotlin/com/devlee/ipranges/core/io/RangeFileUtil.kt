@@ -7,6 +7,7 @@ import com.devlee.ipranges.core.provider.Provider
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 class RangeFileUtil {
 
@@ -16,51 +17,21 @@ class RangeFileUtil {
 
         private const val RANGE_FILE_PATH = "./range/"
 
-        fun findAllRegex(): List<IPRegex> {
-            val regexFiles = File(RANGE_FILE_PATH)
+        private val regexCache: ConcurrentHashMap<Provider, List<IPRegex>> = ConcurrentHashMap()
 
-            if (!regexFiles.exists() || regexFiles.listFiles().isNullOrEmpty()) {
-                throw NoSuchFileException(regexFiles)
-            }
-
-            val ipRegexList = mutableListOf<IPRegex>()
-
-            regexFiles.listFiles()?.forEach { regexFile ->
-                val regexFileList = regexFile.listFiles()
-
-                val regexDocument = regexFileList?.getOrNull(0)
-
-                regexDocument?.run {
-                    ipRegexList.addAll(
-                        jsonFormat.decodeFromString(this.readText())
-                    )
-                }
-            }
-
-            return ipRegexList
-        }
-
-        fun findRegex(provider: Provider): List<IPRegex> {
-            val regexFile = File(RANGE_FILE_PATH + createRegexFileName(provider))
-
-            if (!regexFile.exists()) {
-                throw NoSuchFileException(regexFile)
-            }
-
-            return jsonFormat.decodeFromString<List<IPRegex>>(regexFile.readText())
+        fun getRegex(
+            provider: Provider,
+            filter: (IPRegex) -> Boolean = { true }
+        ): List<IPRegex> {
+            return regexCache.computeIfAbsent(provider) { findRegex(it) }.filter(filter)
         }
 
         fun updateRangeFile(provider: Provider, rangeParse: () -> List<IPRanges>) {
             val regexFile = createFileData(createRegexFileName(provider))
             val rangeFile = createFileData(createRangeFileName(provider))
 
-            if (!regexFile.parentFile.exists()) {
-                regexFile.parentFile.mkdir()
-            }
-
-            if (!rangeFile.parentFile.exists()) {
-                rangeFile.parentFile.mkdir()
-            }
+            regexFile.parentFile.mkdirs()
+            rangeFile.parentFile.mkdirs()
 
             val rangeList = rangeParse.invoke()
 
@@ -68,13 +39,43 @@ class RangeFileUtil {
                 IPRegex(
                     name = it.name,
                     regex = it.ranges
-                        .filter { ip -> ip.split('.').size == 4 }
-                        .map { ip -> RegexConverter.extract(ip) }
+                        .filter { range -> '/' in range }
+                        .mapNotNull { range ->
+                            try {
+                                Regex(RegexConverter.extract(range))
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
                 )
             }
 
             rangeFile.writeText(jsonFormat.encodeToString(rangeList))
             regexFile.writeText(jsonFormat.encodeToString(regexList))
+
+            regexCache.remove(provider)
+        }
+
+        private fun findRegex(provider: Provider): List<IPRegex> {
+            val regexFileName = createRegexFileName(provider)
+            val regexFile = File(RANGE_FILE_PATH + regexFileName)
+
+            /*
+            * Working-directory file wins (repo checkout, freshly updated data);
+            * otherwise fall back to the copy bundled in the jar so the library
+            * works when consumed as a dependency.
+            */
+            val regexJson = if (regexFile.exists()) {
+                regexFile.readText()
+            } else {
+                RangeFileUtil::class.java.classLoader
+                    .getResourceAsStream(regexFileName)
+                    ?.bufferedReader()
+                    ?.use { it.readText() }
+                    ?: throw NoSuchFileException(regexFile)
+            }
+
+            return jsonFormat.decodeFromString<List<IPRegex>>(regexJson)
         }
 
         private fun createFileData(fileName: String): File =

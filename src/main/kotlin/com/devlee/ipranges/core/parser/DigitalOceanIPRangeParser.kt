@@ -28,6 +28,10 @@ data object DigitalOceanIPRangeParser : IPRangeParser {
 
                 val splitRegionInfo = region.split(",")
 
+                if (splitRegionInfo.size < 3) {
+                    return@forEach
+                }
+
                 val ipAddress = splitRegionInfo[0]
                 val regionName = splitRegionInfo[2]
 
