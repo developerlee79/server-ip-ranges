@@ -1,10 +1,11 @@
 plugins {
     kotlin("jvm") version "1.9.0"
     kotlin("plugin.serialization") version "1.9.0"
+    `maven-publish`
 }
 
 group = "com.devlee79"
-version = "1.0"
+version = "1.0.1"
 
 repositories {
     mavenCentral()
@@ -53,4 +54,16 @@ sourceSets.main {
 
 tasks.processResources {
     exclude("**/ServiceTags_*.json")
+}
+
+/*
+* Required for JitPack: it publishes whatever the maven publication produces.
+* Intentionally no developers/scm metadata — keeps personal info out of the POM.
+*/
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+        }
+    }
 }
