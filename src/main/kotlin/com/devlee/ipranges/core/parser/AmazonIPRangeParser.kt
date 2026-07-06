@@ -29,15 +29,26 @@ data object AmazonIPRangeParser : IPRangeParser {
                 ProviderFileUtil.updateRefreshToken(providerInfo, syncToken)
             }
 
-            val prefixes = responseJson["prefixes"]!!.jsonArray
+            /*
+            * Amazon publishes IPv4 entries under 'prefixes' (key 'ip_prefix') and
+            * IPv6 entries under a separate 'ipv6_prefixes' array (key 'ipv6_prefix').
+            */
+            val prefixArrays = listOfNotNull(
+                responseJson["prefixes"]?.jsonArray,
+                responseJson["ipv6_prefixes"]?.jsonArray
+            )
 
-            for (prefix in prefixes) {
-                val currentIPObject = prefix.jsonObject
+            for (prefixes in prefixArrays) {
+                for (prefix in prefixes) {
+                    val currentIPObject = prefix.jsonObject
 
-                val region = currentIPObject["region"]!!.jsonPrimitive.content
-                val ipAddress = currentIPObject["ip_prefix"]!!.jsonPrimitive.content
+                    val region = currentIPObject["region"]!!.jsonPrimitive.content
+                    val ipAddress = currentIPObject["ip_prefix"]?.jsonPrimitive?.content
+                        ?: currentIPObject["ipv6_prefix"]?.jsonPrimitive?.content
+                        ?: continue
 
-                ipRangeMap.computeIfAbsent(region) { mutableListOf() }.add(ipAddress)
+                    ipRangeMap.computeIfAbsent(region) { mutableListOf() }.add(ipAddress)
+                }
             }
         }
 

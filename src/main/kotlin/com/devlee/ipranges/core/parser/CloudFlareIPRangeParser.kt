@@ -15,14 +15,24 @@ data object CloudFlareIPRangeParser : IPRangeParser {
         return runBlocking {
             val providerInfo = ProviderFileUtil.findProvider(provider)
 
-            listOf(
-                IPRanges(
-                    providerInfo.name,
-                    RequestClient
-                        .getResponse<String>(providerInfo.url)
-                        .split("\n")
-                )
-            )
+            /*
+            * CloudFlare publishes IPv4 and IPv6 ranges on separate endpoints
+            * (ips-v4 / ips-v6); the configured url points to the IPv4 list.
+            */
+            val urls = listOf(
+                providerInfo.url,
+                providerInfo.url.replace("ips-v4", "ips-v6")
+            ).distinct()
+
+            val ranges = urls.flatMap { url ->
+                RequestClient
+                    .getResponse<String>(url)
+                    .split("\n")
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+            }
+
+            listOf(IPRanges(providerInfo.name, ranges))
         }
     }
 
