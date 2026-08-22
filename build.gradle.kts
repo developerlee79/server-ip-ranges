@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.devlee79"
-version = "1.0.1"
+version = "1.1.0"
 
 repositories {
     mavenCentral()
@@ -45,15 +45,28 @@ kotlin {
 }
 
 /*
-* Bundle the generated range data into the jar so RangeFileUtil's classpath
-* fallback works when the library is consumed as a dependency.
+* Packs range/<provider>/ip-range.json into compact binary lookup tables that are bundled in
+* the jar, so RangeFileUtil's classpath fallback works when the library is consumed as a
+* dependency. Generated at build time rather than committed: a clean checkout produces the
+* data, and only the human-readable JSON lives in git.
+*
+* configurations.runtimeClasspath is used instead of sourceSets.main.runtimeClasspath so the
+* task does not depend on processResources, which in turn consumes this task's output.
 */
-sourceSets.main {
-    resources.srcDir("range")
+val packedRangeDir = layout.buildDirectory.dir("generated/range")
+
+val packRangeData by tasks.registering(JavaExec::class) {
+    description = "Packs range/*/ip-range.json into binary lookup tables"
+    group = "build"
+    mainClass.set("com.devlee.ipranges.core.io.RangePackerKt")
+    classpath = sourceSets.main.get().output.classesDirs + configurations.runtimeClasspath.get()
+    args(file("range").absolutePath, packedRangeDir.get().asFile.absolutePath)
+    inputs.files(fileTree("range") { include("*/ip-range.json") })
+    outputs.dir(packedRangeDir)
 }
 
-tasks.processResources {
-    exclude("**/ServiceTags_*.json")
+sourceSets.main {
+    resources.srcDir(packRangeData)
 }
 
 /*

@@ -39,6 +39,7 @@ class IPRangeUtilTest {
         assertNotNull(match, "Expected $testIP to match an Amazon range")
         assertEquals(Provider.Amazon, match.provider)
         assertEquals(true, match.region.isNotBlank())
+        assertEquals(true, match.matchedRange.contains('/'), "Expected a CIDR block, got ${match.matchedRange}")
         assertEquals(true, IPRangeUtil.isServerIP(testIP, Provider.Amazon))
         assertEquals(true, IPRangeUtil.isServerIP(testIP, Provider.Amazon, match.region))
     }

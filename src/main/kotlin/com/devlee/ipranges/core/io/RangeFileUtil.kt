@@ -1,8 +1,8 @@
 package com.devlee.ipranges.core.io
 
-import com.devlee.ipranges.core.extractor.RegexConverter
+import com.devlee.ipranges.core.index.RangeIndex
+import com.devlee.ipranges.core.index.RangeIndexBuilder
 import com.devlee.ipranges.core.io.model.IPRanges
-import com.devlee.ipranges.core.io.model.IPRegex
 import com.devlee.ipranges.core.provider.Provider
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -17,75 +17,46 @@ class RangeFileUtil {
 
         private const val RANGE_FILE_PATH = "./range/"
 
-        private val regexCache: ConcurrentHashMap<Provider, List<IPRegex>> = ConcurrentHashMap()
+        private val indexCache: ConcurrentHashMap<Provider, RangeIndex> = ConcurrentHashMap()
 
-        fun getRegex(
-            provider: Provider,
-            filter: (IPRegex) -> Boolean = { true }
-        ): List<IPRegex> {
-            return regexCache.computeIfAbsent(provider) { findRegex(it) }.filter(filter)
-        }
+        fun getIndex(provider: Provider): RangeIndex =
+            indexCache.computeIfAbsent(provider) { loadIndex(it) }
 
         fun updateRangeFile(provider: Provider, rangeParse: () -> List<IPRanges>) {
-            val regexFile = createFileData(createRegexFileName(provider))
-            val rangeFile = createFileData(createRangeFileName(provider))
-
-            regexFile.parentFile.mkdirs()
+            val rangeFile = File(RANGE_FILE_PATH + rangeFileName(provider))
             rangeFile.parentFile.mkdirs()
 
-            val rangeList = rangeParse.invoke()
+            rangeFile.writeText(jsonFormat.encodeToString(rangeParse.invoke()))
 
-            val regexList = rangeList.map {
-                IPRegex(
-                    name = it.name,
-                    regex = it.ranges
-                        .filter { range -> '/' in range }
-                        .mapNotNull { range ->
-                            try {
-                                Regex(RegexConverter.extract(range))
-                            } catch (_: Exception) {
-                                null
-                            }
-                        }
+            indexCache.remove(provider)
+        }
+
+        /*
+        * Working-directory JSON wins (repo checkout, freshly updated data); otherwise the
+        * packed table bundled in the jar is used, so the library works as a dependency.
+        */
+        private fun loadIndex(provider: Provider): RangeIndex {
+            val rangeFile = File(RANGE_FILE_PATH + rangeFileName(provider))
+
+            if (rangeFile.exists()) {
+                return RangeIndexBuilder.build(
+                    jsonFormat.decodeFromString<List<IPRanges>>(rangeFile.readText())
                 )
             }
 
-            rangeFile.writeText(jsonFormat.encodeToString(rangeList))
-            regexFile.writeText(jsonFormat.encodeToString(regexList))
+            val packedName = packedFileName(provider)
 
-            regexCache.remove(provider)
+            return RangeFileUtil::class.java.classLoader
+                .getResourceAsStream(packedName)
+                ?.use { RangeBinaryFormat.read(it) }
+                ?: throw NoSuchFileException(File(packedName))
         }
 
-        private fun findRegex(provider: Provider): List<IPRegex> {
-            val regexFileName = createRegexFileName(provider)
-            val regexFile = File(RANGE_FILE_PATH + regexFileName)
-
-            /*
-            * Working-directory file wins (repo checkout, freshly updated data);
-            * otherwise fall back to the copy bundled in the jar so the library
-            * works when consumed as a dependency.
-            */
-            val regexJson = if (regexFile.exists()) {
-                regexFile.readText()
-            } else {
-                RangeFileUtil::class.java.classLoader
-                    .getResourceAsStream(regexFileName)
-                    ?.bufferedReader()
-                    ?.use { it.readText() }
-                    ?: throw NoSuchFileException(regexFile)
-            }
-
-            return jsonFormat.decodeFromString<List<IPRegex>>(regexJson)
-        }
-
-        private fun createFileData(fileName: String): File =
-            File(RANGE_FILE_PATH + fileName)
-
-        private fun createRangeFileName(provider: Provider): String =
+        private fun rangeFileName(provider: Provider): String =
             "${provider.name.lowercase()}/ip-range.json"
 
-        private fun createRegexFileName(provider: Provider): String =
-            "${provider.name.lowercase()}/ip-regex.json"
+        private fun packedFileName(provider: Provider): String =
+            "${provider.name.lowercase()}/ranges.bin"
 
     }
 
