@@ -29,7 +29,7 @@ class RangeIndex internal constructor(
     }
 
     fun find(address: IpAddress, regionFilter: (String) -> Boolean): RangeMatch? {
-        val table = if (address.version == IpAddress.VERSION_4) v4 else v6
+        val table = tableFor(address)
 
         val index = table.find(address.high, address.low) { regionFilter(regions[it]) }
         if (index < 0) {
@@ -41,6 +41,18 @@ class RangeIndex internal constructor(
             cidr = table.blockAt(index).toCanonicalString()
         )
     }
+
+    /**
+     * Whether any block accepted by [regionFilter] contains [address].
+     *
+     * Equivalent to `find(address, regionFilter) != null`, but skips rendering the matched
+     * block back into text, which a caller that only needs the boolean would discard.
+     */
+    fun contains(address: IpAddress, regionFilter: (String) -> Boolean): Boolean =
+        tableFor(address).find(address.high, address.low) { regionFilter(regions[it]) } >= 0
+
+    private fun tableFor(address: IpAddress): RangeTable =
+        if (address.version == IpAddress.VERSION_4) v4 else v6
 
     /*
     * Region ids come from a file, so an out-of-range id would otherwise surface much later

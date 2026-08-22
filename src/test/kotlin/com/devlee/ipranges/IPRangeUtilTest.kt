@@ -55,6 +55,44 @@ class IPRangeUtilTest {
     }
 
     /*
+    * isServerIP takes a lookup path that never materializes the matched CIDR string, so it
+    * could silently drift from findMatch. Every provider is checked against both a known
+    * in-range address and inputs that must not match.
+    */
+    @Test
+    fun isServerIPAgreesWithFindMatchForEveryProvider() {
+        for (provider in Provider.entries) {
+            for (ip in listOf(firstNetworkAddress(provider), "127.0.0.1", "::1", "not-an-ip", null)) {
+                val expected = IPRangeUtil.findMatch(ip, provider) != null
+
+                assertEquals(
+                    expected,
+                    IPRangeUtil.isServerIP(ip, provider),
+                    "isServerIP disagreed with findMatch for $ip on $provider"
+                )
+            }
+        }
+    }
+
+    @Test
+    fun isServerIPWithRegionAgreesWithFindMatch() {
+        val testIP = firstAmazonIPv4NetworkAddress()
+        val region = assertNotNull(IPRangeUtil.findMatch(testIP, Provider.Amazon)).region
+
+        assertEquals(true, IPRangeUtil.isServerIP(testIP, Provider.Amazon, region))
+        assertEquals(false, IPRangeUtil.isServerIP(testIP, Provider.Amazon, "no-such-region"))
+        assertEquals(IPRangeUtil.findMatch(testIP) != null, IPRangeUtil.isServerIP(testIP))
+    }
+
+    private fun firstNetworkAddress(provider: Provider): String {
+        val ranges = Json { prettyPrint = true }.decodeFromString<List<IPRanges>>(
+            File("./range/${provider.name.lowercase()}/ip-range.json").readText()
+        )
+
+        return ranges.asSequence().flatMap { it.ranges }.first { '/' in it }.substringBefore('/')
+    }
+
+    /*
     * Derives a deterministic in-range IP from the committed range file so the test
     * stays valid whenever the range data is regenerated.
     */

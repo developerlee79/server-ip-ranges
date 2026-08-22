@@ -18,16 +18,25 @@ class IPRangeUtil {
          * both a genuine non-match and unparseable input; use [findMatch] plus your own
          * input validation when those cases must be distinguished.
          */
-        fun isServerIP(ip: String?): Boolean =
-            findMatch(ip) != null
+        fun isServerIP(ip: String?): Boolean {
+            val target = IpAddress.parse(ip) ?: return false
+
+            return Provider.entries.any { containsInternal(target, it) { true } }
+        }
 
         /** Same contract as [isServerIP], restricted to a single [provider]. */
-        fun isServerIP(ip: String?, provider: Provider): Boolean =
-            findMatch(ip, provider) != null
+        fun isServerIP(ip: String?, provider: Provider): Boolean {
+            val target = IpAddress.parse(ip) ?: return false
+
+            return containsInternal(target, provider) { true }
+        }
 
         /** Same contract as [isServerIP], restricted to a [provider] and exact [region] name. */
-        fun isServerIP(ip: String?, provider: Provider, region: String): Boolean =
-            findMatch(ip, provider, region) != null
+        fun isServerIP(ip: String?, provider: Provider, region: String): Boolean {
+            val target = IpAddress.parse(ip) ?: return false
+
+            return containsInternal(target, provider) { it == region }
+        }
 
         /**
          * Returns the matching provider, region, and published CIDR block for [ip], or null
@@ -63,6 +72,12 @@ class IPRangeUtil {
                 MatchResult(provider, it.region, it.cidr)
             }
         }
+
+        private fun containsInternal(
+            target: IpAddress,
+            provider: Provider,
+            regionFilter: (String) -> Boolean
+        ): Boolean = RangeFileUtil.getIndex(provider).contains(target, regionFilter)
 
     }
 

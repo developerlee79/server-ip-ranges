@@ -55,6 +55,44 @@ class IpAddressTest {
     }
 
     @Test
+    fun `parses every octet boundary value`() {
+        assertEquals(0L, assertNotNull(IpAddress.parse("0.0.0.0")).low)
+        assertEquals(0x0000FF00L, assertNotNull(IpAddress.parse("0.0.255.0")).low)
+        assertEquals(0x63636363L, assertNotNull(IpAddress.parse("99.99.99.99")).low)
+        assertEquals(0x64646464L, assertNotNull(IpAddress.parse("100.100.100.100")).low)
+    }
+
+    /*
+    * Leading zeros make an octet ambiguous — some resolvers read 010 as octal — so they are
+    * rejected outright, matching Python's ipaddress and Go's net/netip.
+    */
+    @Test
+    fun `rejects octets with leading zeros`() {
+        assertNull(IpAddress.parse("192.0.2.01"))
+        assertNull(IpAddress.parse("192.0.2.001"))
+        assertNull(IpAddress.parse("192.0.2.099"))
+        assertNull(IpAddress.parse("010.0.2.1"))
+    }
+
+    @Test
+    fun `rejects malformed IPv4 shapes`() {
+        for (literal in listOf(
+            "192.0.2.",
+            ".192.0.2",
+            "192.0..1",
+            "192.0.2.1.5",
+            "192.0.2.256",
+            "192.0.2.1000",
+            "192.0.2.-1",
+            "192.0.2.a",
+            "192 .0.2.1",
+            "1.2.3.4 5"
+        )) {
+            assertNull(IpAddress.parse(literal), "expected $literal to be rejected")
+        }
+    }
+
+    @Test
     fun `trims surrounding whitespace`() {
         assertEquals(IpAddress.parse("192.0.2.1"), IpAddress.parse("  192.0.2.1  "))
     }

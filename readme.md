@@ -52,7 +52,7 @@ dependencyResolutionManagement {
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("com.github.developerlee79:server-ip-ranges:v1.1.0")
+    implementation("com.github.developerlee79:server-ip-ranges:v1.2.0")
 }
 ```
 
@@ -70,7 +70,7 @@ dependencyResolutionManagement {
 
 // build.gradle
 dependencies {
-    implementation 'com.github.developerlee79:server-ip-ranges:v1.1.0'
+    implementation 'com.github.developerlee79:server-ip-ranges:v1.2.0'
 }
 ```
 </details>
@@ -131,6 +131,7 @@ class Test {
 - `null`, blank, and non-IP-literal input (including hostnames) return `false` / `null` — no exception is thrown for bad input.
 - Hostnames are rejected **before** any `InetAddress` call, so no DNS lookup is ever performed.
 - Addresses are normalized before matching: compressed IPv6 (`2001:db8::1`), uppercase hex, and IPv4-mapped IPv6 (`::ffff:1.2.3.4`) all work.
+- IPv4 octets with leading zeros (`192.0.2.01`) are rejected, since readers disagree on whether `010` means decimal 10 or octal 8. Send `192.0.2.1`.
 - A `false` result covers both "not a cloud IP" and "unparseable input"; use `findMatch` plus your own validation when you need to distinguish them.
 
 ## How It Works

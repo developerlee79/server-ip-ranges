@@ -35,9 +35,8 @@ data class IpAddress(
         private const val BYTES_V4 = 4
         private const val BYTES_V6 = 16
 
-        private const val OCTET_PATTERN = "(\\d{1,2}|1\\d{2}|2[0-4]\\d|25[0-5])"
-
-        private val IPV4_LITERAL_REGEX = Regex("$OCTET_PATTERN(\\.$OCTET_PATTERN){3}")
+        private const val MAX_OCTET_VALUE = 255
+        private const val MAX_OCTET_DIGITS = 3
 
         /**
          * Parses an IP literal, returning null for null, blank, and any input that is not
@@ -54,13 +53,7 @@ data class IpAddress(
 
             val trimmed = text.trim()
 
-            if (IPV4_LITERAL_REGEX.matches(trimmed)) {
-                var value = 0L
-                for (octet in trimmed.split('.')) {
-                    value = (value shl 8) or octet.toLong()
-                }
-                return IpAddress(VERSION_4, 0L, value)
-            }
+            parseIpv4(trimmed)?.let { return it }
 
             if (':' !in trimmed) {
                 return null
@@ -70,6 +63,56 @@ data class IpAddress(
                 ?: return null
 
             return ofBytes(bytes)
+        }
+
+        /*
+        * Scans the text once rather than matching a regex and splitting it: IPv4 parsing runs
+        * on the hot path of every lookup, and the regex form dominated the cost of one.
+        *
+        * Leading zeros are rejected rather than accepted, because a reader that treats 010 as
+        * octal and one that treats it as decimal disagree on which address was meant.
+        */
+        private fun parseIpv4(text: String): IpAddress? {
+            var value = 0L
+            var index = 0
+
+            for (octetIndex in 0 until BYTES_V4) {
+                if (index >= text.length || text[index] !in '0'..'9') {
+                    return null
+                }
+
+                var octet = text[index] - '0'
+                var digits = 1
+                index++
+
+                while (index < text.length && text[index] in '0'..'9') {
+                    if (digits == MAX_OCTET_DIGITS || octet == 0) {
+                        return null
+                    }
+                    octet = octet * 10 + (text[index] - '0')
+                    digits++
+                    index++
+                }
+
+                if (octet > MAX_OCTET_VALUE) {
+                    return null
+                }
+
+                value = (value shl 8) or octet.toLong()
+
+                if (octetIndex < BYTES_V4 - 1) {
+                    if (index >= text.length || text[index] != '.') {
+                        return null
+                    }
+                    index++
+                }
+            }
+
+            if (index != text.length) {
+                return null
+            }
+
+            return IpAddress(VERSION_4, 0L, value)
         }
 
         /*
