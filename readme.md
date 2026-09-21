@@ -55,7 +55,7 @@ dependencyResolutionManagement {
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("com.github.developerlee79:server-ip-ranges:v2.0.0")
+    implementation("com.github.developerlee79:server-ip-ranges:v2.0.1")
 }
 ```
 
@@ -73,7 +73,7 @@ dependencyResolutionManagement {
 
 // build.gradle
 dependencies {
-    implementation 'com.github.developerlee79:server-ip-ranges:v2.0.0'
+    implementation 'com.github.developerlee79:server-ip-ranges:v2.0.1'
 }
 ```
 </details>
