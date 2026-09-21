@@ -23,12 +23,6 @@ data object GoogleIPRangeParser : IPRangeParser {
 
             val responseJson = RequestClient.getResponse<JsonObject>(providerInfo.url)
 
-            val syncToken = responseJson["syncToken"]?.jsonPrimitive?.content
-
-            if (syncToken != null && providerInfo.refreshToken != syncToken) {
-                ProviderFileUtil.updateRefreshToken(providerInfo, syncToken)
-            }
-
             val prefixes = responseJson["prefixes"]!!.jsonArray
 
             for (prefix in prefixes) {

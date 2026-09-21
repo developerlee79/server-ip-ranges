@@ -7,14 +7,11 @@ import com.devlee.ipranges.core.io.model.ProviderInfo
 import com.devlee.ipranges.core.provider.Provider
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.util.cio.*
-import io.ktor.utils.io.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.io.File
 import java.nio.charset.Charset
 
 data object MicrosoftIPRangeParser: IPRangeParser {
@@ -30,30 +27,14 @@ data object MicrosoftIPRangeParser: IPRangeParser {
 
             val rangeFileURL = findRangeFileURL(providerInfo)
 
-            val rangeFileName = rangeFileURL.split("/").last()
-
             /*
-            * The file name is derived from remote content; restrict it to the expected
-            * pattern so path separators or dot-dot sequences can never reach File().
+            * Read into memory rather than through a scratch file: the document is a few MB,
+            * and staging it under the working directory made parsing depend on where the
+            * process happened to run.
             */
-            if (!rangeFileName.matches(Regex("ServiceTags_[A-Za-z0-9_.-]+\\.json")) || ".." in rangeFileName) {
-                throw IllegalStateException("Unexpected Microsoft range file name: $rangeFileName")
-            }
+            val rangeDocument = RequestClient.getClient().get(rangeFileURL).bodyAsText()
 
-            val rangeFile = File("./range/microsoft/$rangeFileName")
-            rangeFile.parentFile.mkdirs()
-            rangeFile.deleteOnExit()
-
-            val rangeFileChannel = RequestClient.getResponse<ByteReadChannel>(rangeFileURL)
-            rangeFileChannel.copyAndClose(rangeFile.writeChannel())
-
-            val rangeJson = Json.parseToJsonElement(rangeFile.readText()).jsonObject
-
-            val syncToken = rangeJson["changeNumber"]?.jsonPrimitive?.content
-
-            if (syncToken != null && providerInfo.refreshToken != syncToken) {
-                ProviderFileUtil.updateRefreshToken(providerInfo, syncToken)
-            }
+            val rangeJson = Json.parseToJsonElement(rangeDocument).jsonObject
 
             val platformArray = rangeJson["values"]?.jsonArray
 

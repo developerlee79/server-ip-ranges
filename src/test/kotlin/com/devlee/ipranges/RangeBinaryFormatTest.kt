@@ -75,48 +75,4 @@ class RangeBinaryFormatTest {
         assertEquals(true, failure.message?.contains("Not a packed range file"))
     }
 
-    /*
-    * The packed resources on the test classpath are exactly what ships in the jar, so this
-    * covers the dependency path that consumers hit when no ./range directory exists.
-    */
-    @Test
-    fun `packed resources bundled in the build agree with the source JSON`() {
-        val failures = mutableListOf<String>()
-
-        for (provider in Provider.entries) {
-            val directory = provider.name.lowercase()
-
-            val packedStream = javaClass.classLoader.getResourceAsStream("$directory/ranges.bin")
-            if (packedStream == null) {
-                failures.add("$provider: missing packed resource $directory/ranges.bin")
-                continue
-            }
-
-            val packed = packedStream.use { RangeBinaryFormat.read(it) }
-            val fromJson = RangeIndexBuilder.build(sourceRanges(directory))
-
-            if (packed.size != fromJson.size) {
-                failures.add("$provider: packed ${packed.size} ranges, JSON has ${fromJson.size}")
-                continue
-            }
-
-            for (address in sampleAddresses(directory)) {
-                if (packed.match(address) != fromJson.match(address)) {
-                    failures.add("$provider: packed and JSON disagree on one sampled address")
-                }
-            }
-        }
-
-        assertEquals(emptyList(), failures)
-    }
-
-    private fun sourceRanges(directory: String): List<IPRanges> =
-        Json.decodeFromString<List<IPRanges>>(File("./range/$directory/ip-range.json").readText())
-
-    private fun sampleAddresses(directory: String): List<String> =
-        sourceRanges(directory)
-            .flatMap { it.ranges }
-            .filterIndexed { index, _ -> index % 500 == 0 }
-            .map { it.substringBefore('/') }
-
 }

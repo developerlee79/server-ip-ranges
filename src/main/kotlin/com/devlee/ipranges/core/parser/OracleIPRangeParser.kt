@@ -23,12 +23,6 @@ data object OracleIPRangeParser : IPRangeParser {
 
             val responseJson = RequestClient.getResponse<JsonObject>(providerInfo.url)
 
-            val lastUpdateTime = responseJson.jsonObject["last_updated_timestamp"]?.jsonPrimitive?.content
-
-            if (lastUpdateTime != null && providerInfo.refreshToken != lastUpdateTime) {
-                ProviderFileUtil.updateRefreshToken(providerInfo, lastUpdateTime)
-            }
-
             val regions = responseJson.jsonObject["regions"]!!.jsonArray
 
             for (region in regions) {

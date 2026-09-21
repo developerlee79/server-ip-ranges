@@ -1,17 +1,18 @@
 package com.devlee.ipranges
 
+import com.devlee.ipranges.core.io.RangeFileUtil
 import com.devlee.ipranges.core.io.model.IPRanges
 import com.devlee.ipranges.core.provider.Provider
+import com.devlee.ipranges.util.IPRangeData
 import com.devlee.ipranges.util.IPRangeUtil
-import kotlinx.serialization.json.Json
-import java.io.File
 import java.math.BigInteger
 import java.net.InetAddress
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Walks the committed range data through the public API.
+ * Walks blocks at every prefix length through the public API.
  *
  * Boundary and interior addresses are derived with [BigInteger] arithmetic rather than with
  * [com.devlee.ipranges.core.net.CidrBlock], so the index is not checked against its own
@@ -19,32 +20,49 @@ import kotlin.test.assertEquals
  */
 class RangeDataIntegrityTest {
 
-    /* Keeps runtime low while still covering every provider and both IP versions. */
-    private val sampleStep = 50
+    /* /0 and /1 would cover the whole space and swallow the negative checks. */
+    private val v4Blocks = (2..32).map { prefix -> networkAddressOf("203.0.113.0", prefix) }
+    private val v6Blocks = (2..128).map { prefix -> networkAddressOf("2001:db8::", prefix) }
+
+    @AfterTest
+    fun resetDataSource() {
+        RangeFileUtil.usePackedDirectory(null)
+    }
+
+    private fun networkAddressOf(literal: String, prefixLength: Int): String {
+        val bytes = InetAddress.getByName(literal).address
+        val hostBits = bytes.size * 8 - prefixLength
+        val hostMask = BigInteger.ONE.shiftLeft(hostBits).subtract(BigInteger.ONE)
+
+        return "${toAddressText(BigInteger(1, bytes).andNot(hostMask), bytes.size)}/$prefixLength"
+    }
+
+    private fun useBlocks(blocks: List<String>) {
+        val directory = RangeFixtures.temporaryDirectory("ipranges-integrity")
+        RangeFixtures.writePackedTables(
+            directory,
+            listOf(Provider.Amazon),
+            listOf(IPRanges(RangeFixtures.REGION, blocks))
+        )
+
+        IPRangeData.usePackedDirectory(directory)
+    }
 
     @Test
-    fun `every sampled block matches at its first last and interior address`() {
+    fun `every block matches at its first last and interior address`() {
         val failures = mutableListOf<String>()
 
-        for (provider in Provider.entries) {
-            val rangeFile = File("./range/${provider.name.lowercase()}/ip-range.json")
-            if (!rangeFile.exists()) {
-                failures.add("$provider: missing ip-range.json")
-                continue
-            }
+        for (blocks in listOf(v4Blocks, v6Blocks)) {
+            useBlocks(blocks)
 
-            val samples = Json.decodeFromString<List<IPRanges>>(rangeFile.readText())
-                .flatMap { it.ranges }
-                .filterIndexed { index, _ -> index % sampleStep == 0 }
-
-            for (range in samples) {
+            for (range in blocks) {
                 for (address in boundaryAndInteriorAddresses(range)) {
-                    val match = IPRangeUtil.findMatch(address, provider)
+                    val match = IPRangeUtil.findMatch(address, Provider.Amazon)
 
                     when {
-                        match == null -> failures.add("$provider: $range does not match $address")
+                        match == null -> failures.add("$range does not match $address")
                         !covers(match.matchedRange, address) ->
-                            failures.add("$provider: $address matched ${match.matchedRange}, which excludes it")
+                            failures.add("$address matched ${match.matchedRange}, which excludes it")
                     }
                 }
             }
@@ -53,11 +71,27 @@ class RangeDataIntegrityTest {
         assertEquals(emptyList(), failures)
     }
 
+    /*
+    * The widest block here is /2, which normalizes to 192.0.0.0/2 and so covers every
+    * documentation range above it -- the negative cases have to sit below that.
+    */
     @Test
-    fun `an unroutable address matches no provider`() {
-        for (provider in Provider.entries) {
-            assertEquals(null, IPRangeUtil.findMatch("0.0.0.0", provider), "$provider matched 0.0.0.0")
-        }
+    fun `an address outside every block matches nothing`() {
+        useBlocks(v4Blocks)
+
+        assertEquals(null, IPRangeUtil.findMatch("10.0.0.1", Provider.Amazon))
+        assertEquals(null, IPRangeUtil.findMatch("0.0.0.0", Provider.Amazon))
+    }
+
+    /* Every block contains this address, so only the most specific one may be reported. */
+    @Test
+    fun `the narrowest block wins where every prefix length overlaps`() {
+        useBlocks(v4Blocks)
+
+        assertEquals(
+            "203.0.113.0/32",
+            IPRangeUtil.findMatch("203.0.113.0", Provider.Amazon)?.matchedRange
+        )
     }
 
     private fun boundaryAndInteriorAddresses(range: String): List<String> {

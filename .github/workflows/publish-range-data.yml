@@ -1,0 +1,52 @@
+name: Publish range data
+
+# Range data is never committed. This job fetches every provider feed, packs the lookup
+# tables, and attaches them to a dated release, which is what IPRangeData.useRelease()
+# downloads. Azure publishes weekly, so weekly is as often as this is worth running.
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Fetch provider feeds
+        run: ./gradlew updateRangeFiles
+
+      # Lets the packer refuse to publish a provider whose block count collapsed, which is
+      # what a truncated upstream feed looks like.
+      - name: Download previous manifest
+        run: |
+          curl -fsSL -o previous-version.json \
+            "https://github.com/${{ github.repository }}/releases/latest/download/version.json" \
+            || echo "no previous release yet"
+
+      - name: Pack release assets
+        run: ./gradlew packReleaseData -PpreviousVersionJson=previous-version.json
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(python3 -c "import json;print(json.load(open('build/release-data/version.json'))['version'])")
+
+          if gh release view "v$version" >/dev/null 2>&1; then
+            gh release upload "v$version" build/release-data/* --clobber
+          else
+            gh release create "v$version" build/release-data/* \
+              --title "Range data $version" \
+              --notes "Packed cloud provider IP range tables. Consumed by IPRangeData.useRelease()."
+          fi

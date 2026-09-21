@@ -31,5 +31,6 @@ out/
 # Mac OS
 .DS_Store
 
-# Provider range scratch files (the Azure feed is downloaded before parsing)
-range/*/ServiceTags_*.json
+
+# Range data: fetched in CI, published as release assets, never committed
+range/

@@ -23,12 +23,6 @@ data object AmazonIPRangeParser : IPRangeParser {
 
             val responseJson = RequestClient.getResponse<JsonObject>(providerInfo.url)
 
-            val syncToken = responseJson["syncToken"]?.jsonPrimitive?.content
-
-            if (syncToken != null && providerInfo.refreshToken != syncToken) {
-                ProviderFileUtil.updateRefreshToken(providerInfo, syncToken)
-            }
-
             /*
             * Amazon publishes IPv4 entries under 'prefixes' (key 'ip_prefix') and
             * IPv6 entries under a separate 'ipv6_prefixes' array (key 'ipv6_prefix').

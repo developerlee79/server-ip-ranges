@@ -1,20 +1,23 @@
 # Cloud Server IP Range Utility
 
-Detect whether an IP address belongs to a major cloud provider — offline, with no API calls at lookup time.
+Detect whether an IP address belongs to a major cloud provider, with no API call per lookup.
 
-This library packs the IP range lists published by each cloud provider into a compact binary lookup table, bundled with the library, so your application can answer *"is this a cloud server IP?"* with a local binary search.
+This library turns the IP range lists published by each cloud provider into a compact binary lookup table, so your application can answer *"is this a cloud server IP?"* with a local binary search.
+
+**The range data does not live in this repository and does not ship in the jar.** It is built weekly by CI from the providers' own feeds and published as release assets. Your server downloads it once into a local cache and uses that copy from then on — so the data on your machine is yours, and it stays current without a library upgrade.
 
 > Both **IPv4 and IPv6** are supported.
 
 ## Features
 
-- **Offline lookup** — range data ships inside the jar; no network access at runtime
+- **Local lookups** — after the one-time download, every lookup is a binary search against a cached table
+- **Data you own** — tables live in a cache directory on your host, not inside the artifact
 - **IPv4 + IPv6** — full CIDR support at any prefix length
-- **Fast** — binary search over ~50,000 blocks: sub-millisecond lookups, ~2 MB of heap
+- **Fast** — binary search over ~41,000 blocks, held as primitive arrays rather than objects
 - **Provider / region filtering** — restrict matching to one provider or one region
 - **Detailed match results** — `findMatch` tells you which provider, region, and CIDR block matched
 - **Safe input handling** — never throws for bad input, never performs a DNS lookup
-- **Refreshable data** — one Gradle task re-fetches every provider's published ranges
+- **Verified downloads** — every table is checked against the SHA-256 published in `version.json`
 
 ## Supported Providers
 
@@ -52,7 +55,7 @@ dependencyResolutionManagement {
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("com.github.developerlee79:server-ip-ranges:v1.2.0")
+    implementation("com.github.developerlee79:server-ip-ranges:v2.0.0")
 }
 ```
 
@@ -70,12 +73,35 @@ dependencyResolutionManagement {
 
 // build.gradle
 dependencies {
-    implementation 'com.github.developerlee79:server-ip-ranges:v1.2.0'
+    implementation 'com.github.developerlee79:server-ip-ranges:v2.0.0'
 }
 ```
 </details>
 
 ## Usage
+
+### Load the range data once at startup
+
+No range data ships in the jar, so pick a source before the first lookup. Calling this on every start is fine: when the cache is current only the few-hundred-byte `version.json` is fetched.
+
+```kotlin
+import com.devlee.ipranges.util.IPRangeData
+
+fun main() {
+    // Downloads the published tables into ~/.cache/server-ip-ranges on first run.
+    IPRangeData.useRelease()
+
+    startApplication()
+}
+```
+
+A lookup before this runs throws `IllegalStateException` rather than answering "not a cloud IP" — a missing dataset must not look like a negative result.
+
+Hosts that must not reach the network can stage the release assets themselves:
+
+```kotlin
+IPRangeData.usePackedDirectory(File("/opt/server-ip-ranges"))
+```
 
 ### Basic check
 
@@ -136,22 +162,42 @@ class Test {
 
 ## How It Works
 
-1. Each provider's published range document is parsed into region-grouped CIDR blocks and committed as `range/<provider>/ip-range.json` — the only range data kept in git.
-2. At build time the Gradle `packRangeData` task turns each file into `ranges.bin`, a sorted table of network addresses plus prefix lengths, and that table is what ships in the jar. End addresses are implied by the prefix length, and IPv4 blocks are stored in four bytes.
-3. At runtime the table is loaded once per provider and cached — from `./range/<provider>/ip-range.json` when running inside a repo checkout, otherwise from the packed resource in the jar.
-4. `isServerIP` / `findMatch` parse the input into an unsigned 32-bit or 128-bit integer and binary-search the table.
+1. Weekly, a GitHub Actions job fetches each provider's published range document and parses it into region-grouped CIDR blocks. Nothing is committed — the parsed JSON is a build artifact.
+2. The same job packs each provider into `<provider>.bin`: a sorted table of network addresses plus prefix lengths. End addresses are implied by the prefix length, and IPv4 blocks are stored in four bytes. A provider whose block count collapses fails the job instead of being published, since that is what a truncated upstream feed looks like.
+3. The tables and a `version.json` naming their SHA-256 digests are attached to a dated release.
+4. `IPRangeData.useRelease()` downloads them into a cache directory, verifying each digest, and writes them into place atomically. Later starts re-fetch only `version.json`.
+5. `isServerIP` / `findMatch` parse the input into an unsigned 32-bit or 128-bit integer and binary-search the cached table.
 
 Providers publish overlapping and nested blocks, so a match walks back from the binary-search position while an enclosing block is still possible. Where blocks overlap, the most specific one is reported.
 
-## Updating Range Data
+## Range Data
 
-Providers change their ranges over time. Regenerate the data from a repo checkout:
+Data lives in three places, none of them this repository:
+
+| Where | What | Who writes it |
+|-------|------|---------------|
+| Release assets | `<provider>.bin`, `version.json` | CI, weekly |
+| `~/.cache/server-ip-ranges/<version>/` | verified copy of the tables | `IPRangeData.useRelease()` |
+| `<dataDir>/range/<provider>/ip-range.json` | parsed feed output | `./gradlew updateRangeFiles` |
+
+### Cache location
+
+`$XDG_CACHE_HOME/server-ip-ranges`, falling back to `~/.cache/server-ip-ranges`. Pass a different directory to `useRelease(cacheDirectory = ...)`, or point `usePackedDirectory` at tables you staged yourself. A download that fails its digest check is discarded rather than cached.
+
+### Working from a checkout
 
 ```bash
-./gradlew updateRangeFiles
+./gradlew updateRangeFiles   # fetch every provider feed into ./range
+./gradlew packReleaseData    # pack build/release-data: <provider>.bin + version.json
 ```
 
-This fetches every provider's live feed, rewrites `range/*/ip-range.json`, and reports per-provider failures without aborting the whole run. The packed tables are regenerated by the next build; run `./gradlew packRangeData` to refresh them on their own. The default `./gradlew test` task is hermetic and never touches the network.
+`updateRangeFiles` reports per-provider failures without aborting the whole run, and sets `-Dipranges.dataDir` to the project directory so the fetched JSON is what lookups read. Set that property yourself to point a running application at a directory of JSON instead. The default `./gradlew test` task is hermetic — it builds its own fixtures and never touches the network.
+
+Pass the previous manifest to arm the shrink guard when packing:
+
+```bash
+./gradlew packReleaseData -PpreviousVersionJson=previous-version.json
+```
 
 ## Contributing
 
