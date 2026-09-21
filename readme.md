@@ -31,7 +31,7 @@ This library turns the IP range lists published by each cloud provider into a co
 | Oracle (OCI) | [public_ip_ranges.json](https://docs.oracle.com/iaas/tools/public_ip_ranges.json) | ✅ | — |
 | Tencent | Chat service IP list API | ✅ | — |
 
-Oracle and Tencent publish IPv4-only feeds.
+Oracle and Tencent publish IPv4-only feeds, and that is unlikely to change: Oracle hands out IPv6 as a per-VCN /56 rather than enumerating regional prefixes, so there is no authoritative list to consume. Third-party IPv6 sets for these providers are inferred from BGP announcements, which is fine for threat intelligence but not for answering "is this a cloud IP".
 
 ## Requirements
 
@@ -162,7 +162,7 @@ class Test {
 
 ## How It Works
 
-1. Weekly, a GitHub Actions job fetches each provider's published range document and parses it into region-grouped CIDR blocks. Nothing is committed — the parsed JSON is a build artifact.
+1. Weekly, a GitHub Actions job fetches each provider's published range document and parses it into region-grouped CIDR blocks. Nothing is committed — the parsed JSON is a build artifact. Azure is the one provider with no stable feed URL, so its link is scraped from the download page; the scrape only accepts a `download.microsoft.com` URL and rejects a document older than 45 days, since a page stuck on an old link would otherwise republish stale ranges without any count changing enough to notice.
 2. The same job packs each provider into `<provider>.bin`: a sorted table of network addresses plus prefix lengths. End addresses are implied by the prefix length, and IPv4 blocks are stored in four bytes. A provider whose block count collapses fails the job instead of being published, since that is what a truncated upstream feed looks like.
 3. The tables and a `version.json` naming their SHA-256 digests are attached to a dated release.
 4. `IPRangeData.useRelease()` downloads them into a cache directory, verifying each digest, and writes them into place atomically. Later starts re-fetch only `version.json`.

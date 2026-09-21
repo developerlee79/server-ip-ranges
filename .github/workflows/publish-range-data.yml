@@ -13,12 +13,20 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest migrates to Ubuntu 26 in October 2026, and an unattended weekly
+    # job is the worst place to discover a runner image change.
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to commit SHAs rather than tags: a tag can be moved to point at other code,
+      # and this job holds a token that can publish releases.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing here pushes to git; leaving the token in .git/config would only widen
+          # what a later step could read.
+          persist-credentials: false
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: '17'
